@@ -1,0 +1,59 @@
+{
+  "name": "nichelink-workspace",
+  "version": "1.0.0",
+  "description": "NicheLink - Nền tảng kết nối Micro-influencer và SMEs",
+  "private": true,
+  "workspaces": [
+    "mobile-app",
+    "backend/*",
+    "shared"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm run install:mobile && npm run install:backend",
+    "install:mobile": "cd mobile-app && npm install",
+    "install:backend": "npm run install:auth && npm run install:campaign && npm run install:messaging && npm run install:payment && npm run install:analytics",
+    "install:auth": "cd backend/auth-service && npm install",
+    "install:campaign": "cd backend/campaign-service && npm install",
+    "install:messaging": "cd backend/messaging-service && npm install",
+    "install:payment": "cd backend/payment-service && npm install",
+    "install:analytics": "cd backend/analytics-service && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:mobile\"",
+    "dev:mobile": "cd mobile-app && npm run start",
+    "dev:backend": "concurrently \"npm run dev:auth\" \"npm run dev:campaign\" \"npm run dev:messaging\"",
+    "dev:auth": "cd backend/auth-service && npm run dev",
+    "dev:campaign": "cd backend/campaign-service && npm run dev",
+    "dev:messaging": "cd backend/messaging-service && npm run dev",
+    "dev:payment": "cd backend/payment-service && npm run dev",
+    "dev:analytics": "cd backend/analytics-service && npm run dev",
+    "build": "npm run build:mobile && npm run build:backend",
+    "build:mobile": "cd mobile-app && npm run build",
+    "build:backend": "npm run build:auth && npm run build:campaign && npm run build:messaging && npm run build:payment && npm run build:analytics",
+    "build:auth": "cd backend/auth-service && npm run build",
+    "build:campaign": "cd backend/campaign-service && npm run build",
+    "build:messaging": "cd backend/messaging-service && npm run build",
+    "build:payment": "cd backend/payment-service && npm run build",
+    "build:analytics": "cd backend/analytics-service && npm run build",
+    "test": "npm run test:backend && npm run test:mobile",
+    "test:mobile": "cd mobile-app && npm run test",
+    "test:backend": "npm run test:auth && npm run test:campaign && npm run test:messaging && npm run test:payment && npm run test:analytics",
+    "test:auth": "cd backend/auth-service && npm run test",
+    "test:campaign": "cd backend/campaign-service && npm run test",
+    "test:messaging": "cd backend/messaging-service && npm run test",
+    "test:payment": "cd backend/payment-service && npm run test",
+    "test:analytics": "cd backend/analytics-service && npm run test",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "author": "NicheLink Team",
+  "license": "MIT"
+}

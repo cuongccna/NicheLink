@@ -1,0 +1,167 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - for transactional data
+  postgres:
+    image: postgres:15-alpine
+    container_name: nichelink-postgres
+    environment:
+      POSTGRES_DB: nichelink
+      POSTGRES_USER: nichelink
+      POSTGRES_PASSWORD: nichelink123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - nichelink-network
+
+  # MongoDB - for content and flexible data
+  mongodb:
+    image: mongo:7.0
+    container_name: nichelink-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: nichelink
+      MONGO_INITDB_ROOT_PASSWORD: nichelink123
+      MONGO_INITDB_DATABASE: nichelink
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./backend/database/mongodb/init.js:/docker-entrypoint-initdb.d/init.js
+    networks:
+      - nichelink-network
+
+  # Redis - for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: nichelink-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - nichelink-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: nichelink-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - nichelink-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./backend/auth-service
+      dockerfile: Dockerfile
+    container_name: nichelink-auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://nichelink:nichelink123@postgres:5432/nichelink
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nichelink-network
+
+  # Campaign Service
+  campaign-service:
+    build:
+      context: ./backend/campaign-service
+      dockerfile: Dockerfile
+    container_name: nichelink-campaign-service
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://nichelink:nichelink123@postgres:5432/nichelink
+      - MONGODB_URL=mongodb://nichelink:nichelink123@mongodb:27017/nichelink
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - mongodb
+      - redis
+    networks:
+      - nichelink-network
+
+  # Messaging Service
+  messaging-service:
+    build:
+      context: ./backend/messaging-service
+      dockerfile: Dockerfile
+    container_name: nichelink-messaging-service
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URL=mongodb://nichelink:nichelink123@mongodb:27017/nichelink
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - nichelink-network
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ./backend/payment-service
+      dockerfile: Dockerfile
+    container_name: nichelink-payment-service
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://nichelink:nichelink123@postgres:5432/nichelink
+      - REDIS_URL=redis://redis:6379
+      - VNPAY_TMN_CODE=your-vnpay-tmn-code
+      - VNPAY_SECRET_KEY=your-vnpay-secret-key
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - nichelink-network
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: ./backend/analytics-service
+      dockerfile: Dockerfile
+    container_name: nichelink-analytics-service
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://nichelink:nichelink123@postgres:5432/nichelink
+      - MONGODB_URL=mongodb://nichelink:nichelink123@mongodb:27017/nichelink
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - mongodb
+      - redis
+    networks:
+      - nichelink-network
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:
+
+networks:
+  nichelink-network:
+    driver: bridge

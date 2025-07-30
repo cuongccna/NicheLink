@@ -1,0 +1,210 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SME        // Small & Medium Enterprise
+  INFLUENCER // Micro/Nano Influencer
+  ADMIN      // System Administrator
+}
+
+enum UserStatus {
+  PENDING    // Waiting for email verification
+  ACTIVE     // Account is active
+  SUSPENDED  // Account is suspended
+  DELETED    // Account is deleted
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  phone     String?  @unique
+  password  String?  // Optional for social login
+  
+  // Firebase Auth integration
+  firebaseUid String? @unique
+  
+  // Basic info
+  firstName String
+  lastName  String
+  avatar    String?
+  gender    Gender?
+  dateOfBirth DateTime?
+  
+  // Account management
+  role      UserRole   @default(INFLUENCER)
+  status    UserStatus @default(PENDING)
+  isEmailVerified Boolean @default(false)
+  isPhoneVerified Boolean @default(false)
+  
+  // Security
+  lastLoginAt DateTime?
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  
+  // Relations
+  smeProfile        SMEProfile?
+  influencerProfile InfluencerProfile?
+  sessions          UserSession[]
+  auditLogs         AuditLog[]
+  
+  @@map("users")
+}
+
+model SMEProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Business information
+  companyName    String
+  businessType   String
+  industry       String
+  description    String?
+  website        String?
+  establishedYear Int?
+  
+  // Contact information
+  address        String?
+  city           String?
+  state          String?
+  country        String    @default("Vietnam")
+  postalCode     String?
+  
+  // Business verification
+  isVerified     Boolean   @default(false)
+  taxId          String?   @unique
+  businessLicense String?
+  
+  // Preferences
+  preferredBudgetRange String? // "100-500", "500-1000", "1000+"
+  preferredCampaignTypes String[] // ["review", "unboxing", "livestream"]
+  targetAudience String? // JSON string for complex targeting
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("sme_profiles")
+}
+
+model InfluencerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Influencer information
+  displayName String
+  bio         String?
+  categories  String[] // ["fashion", "food", "tech", "lifestyle"]
+  languages   String[] // ["vi", "en"]
+  
+  // Location
+  city     String?
+  state    String?
+  country  String @default("Vietnam")
+  
+  // Social media accounts
+  socialAccounts Json? // {instagram: {...}, tiktok: {...}, youtube: {...}}
+  
+  // Stats (will be updated from social media APIs)
+  totalFollowers Int @default(0)
+  averageEngagement Float @default(0.0)
+  
+  // Preferences
+  minCampaignBudget Decimal? @default(0)
+  preferredCampaignTypes String[] // ["review", "unboxing", "livestream"]
+  availableForCollabs Boolean @default(true)
+  
+  // Verification
+  isVerified Boolean @default(false)
+  verificationDocuments String[] // URLs to verification documents
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("influencer_profiles")
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token     String   @unique
+  refreshToken String @unique
+  deviceInfo String? // JSON string with device information
+  ipAddress String?
+  userAgent String?
+  
+  expiresAt DateTime
+  refreshExpiresAt DateTime
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  
+  @@map("user_sessions")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  
+  action    String   // "LOGIN", "LOGOUT", "PASSWORD_CHANGE", etc.
+  resource  String?  // Resource affected
+  resourceId String? // ID of the resource
+  details   Json?    // Additional details
+  ipAddress String?
+  userAgent String?
+  
+  createdAt DateTime @default(now())
+  
+  @@map("audit_logs")
+}
+
+// Social Media Account model (for detailed tracking)
+model SocialMediaAccount {
+  id       String @id @default(cuid())
+  platform String // "instagram", "tiktok", "youtube", "facebook"
+  username String
+  url      String
+  
+  // Stats
+  followersCount Int @default(0)
+  followingCount Int @default(0)
+  postsCount     Int @default(0)
+  engagementRate Float @default(0.0)
+  
+  // Verification
+  isVerified Boolean @default(false)
+  lastSyncAt DateTime?
+  
+  // Connection to influencer
+  influencerProfileId String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([platform, username])
+  @@map("social_media_accounts")
+}

@@ -1,0 +1,61 @@
+{
+  "name": "nichelink-auth-service",
+  "version": "1.0.0",
+  "description": "Authentication and User Management Service for NicheLink",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "nodemon src/index.ts",
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "db:migrate": "npx prisma migrate dev",
+    "db:generate": "npx prisma generate",
+    "db:seed": "npx prisma db seed"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "dotenv": "^16.4.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "joi": "^17.13.1",
+    "prisma": "^5.15.0",
+    "@prisma/client": "^5.15.0",
+    "firebase-admin": "^12.1.0",
+    "redis": "^4.6.14",
+    "winston": "^3.13.0",
+    "express-rate-limit": "^7.2.0",
+    "express-validator": "^7.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/morgan": "^1.9.9",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0",
+    "nodemon": "^3.1.4",
+    "ts-node": "^10.9.2",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.12",
+    "ts-jest": "^29.1.4",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.13.0",
+    "@typescript-eslint/parser": "^7.13.0"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "author": "NicheLink Team",
+  "license": "MIT"
+}
