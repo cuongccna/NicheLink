@@ -46,8 +46,8 @@
     "docker:logs": "docker-compose logs -f"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
     "@types/node": "^20.14.0",
+    "concurrently": "^8.2.2",
     "typescript": "^5.5.0"
   },
   "engines": {
@@ -55,5 +55,8 @@
     "npm": ">=10.0.0"
   },
   "author": "NicheLink Team",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@types/jsonwebtoken": "^9.0.10"
+  }
 }

@@ -5,12 +5,14 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 
-import { errorHandler } from '@/middleware/errorHandler';
-import { logger } from '@/utils/logger';
-import { connectRedis } from '@/config/redis';
-import authRoutes from '@/routes/auth';
-import userRoutes from '@/routes/user';
-import healthRoutes from '@/routes/health';
+import { errorHandler } from './middleware/errorHandler';
+import { logger } from './utils/logger';
+import { connectCache } from './config/cache';
+import { initializeFirebase } from './config/firebase';
+import authRoutes from './routes/auth';
+import userRoutes from './routes/user';
+import profileRoutes from './routes/profile';
+import healthRoutes from './routes/health';
 
 // Load environment variables
 dotenv.config();
@@ -44,6 +46,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Error handling
 app.use(errorHandler);
@@ -58,11 +61,15 @@ app.use('*', (req, res) => {
 
 async function startServer() {
   try {
-    // Connect to Redis
-    await connectRedis();
-    logger.info('Connected to Redis');
+    // Initialize Firebase
+    await initializeFirebase();
+    logger.info('Firebase initialized successfully');
 
-    app.listen(PORT, () => {
+    // Connect to Cache
+    await connectCache();
+    logger.info('Connected to File Cache');
+
+    app.listen(Number(PORT), "0.0.0.0", () => {
       logger.info(`🚀 Auth Service running on port ${PORT}`);
       logger.info(`📝 Environment: ${process.env.NODE_ENV}`);
       logger.info(`🔗 Health check: http://localhost:${PORT}/api/health`);

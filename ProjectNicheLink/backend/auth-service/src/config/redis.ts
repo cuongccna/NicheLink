@@ -1,5 +1,5 @@
 import Redis from 'redis';
-import { logger } from '@/utils/logger';
+import { logger } from '../utils/logger';
 
 let redisClient: Redis.RedisClientType;
 

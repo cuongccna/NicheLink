@@ -1,0 +1,454 @@
+// This is your Prisma schema file for Smart Matching & Analytics
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ================================
+// SHARED MODELS (User, Campaign, etc.)
+// ================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String?
+  lastName  String?
+  role      String   // SME, INFLUENCER, ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  influencerProfile InfluencerProfile?
+  smeProfile        SMEProfile?
+  
+  @@map("users")
+}
+
+model InfluencerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Basic info
+  displayName  String?
+  bio          String?
+  avatar       String?
+  
+  // Social Media Stats
+  followersCount    Int     @default(0)
+  engagementRate    Float   @default(0.0)
+  averageViews      Int     @default(0)
+  averageLikes      Int     @default(0)
+  averageComments   Int     @default(0)
+  averageShares     Int     @default(0)
+  
+  // Demographics
+  age              Int?
+  gender           String?
+  location         String?
+  languages        String[] // ['vi', 'en']
+  
+  // Content & Preferences
+  categories       String[] // ['fashion', 'beauty', 'food', 'tech']
+  contentTypes     String[] // ['photo', 'video', 'story', 'reel']
+  postingFrequency String?  // 'daily', 'weekly', etc.
+  
+  // Performance Metrics
+  totalCampaigns    Int     @default(0)
+  successfulCampaigns Int   @default(0)
+  averageROI        Float   @default(0.0)
+  reliabilityScore  Float   @default(0.0)
+  communicationScore Float  @default(0.0)
+  
+  // AI/ML Features
+  aiTags           String[] // AI-generated tags for better matching
+  personalityType  String?  // AI-determined personality type
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Relations
+  socialMediaAccounts SocialMediaAccount[]
+  campaignApplications CampaignApplication[]
+  analytics           InfluencerAnalytics[]
+  recommendations     RecommendationResult[]
+  
+  @@map("influencer_profiles")
+}
+
+model SMEProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Business info
+  companyName    String
+  businessType   String
+  industry       String
+  description    String?
+  website        String?
+  
+  // Business size & budget
+  companySize    String?  // 'startup', 'small', 'medium', 'large'
+  monthlyBudget  Float?
+  campaignBudgetRange String? // '1-5M', '5-10M', '10M+'
+  
+  // Preferences
+  preferredCategories String[] // categories they usually work with
+  preferredInfluencerTypes String[] // 'micro', 'macro', 'mega'
+  targetAudience      Json? // complex audience targeting data
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  campaigns      Campaign[]
+  analytics      SMEAnalytics[]
+  
+  @@map("sme_profiles")
+}
+
+model SocialMediaAccount {
+  id           String @id @default(cuid())
+  influencerId String
+  influencer   InfluencerProfile @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  
+  platform     String // 'instagram', 'tiktok', 'youtube', 'facebook'
+  username     String
+  url          String?
+  
+  // Platform-specific metrics
+  followers    Int     @default(0)
+  following    Int     @default(0)
+  posts        Int     @default(0)
+  engagement   Float   @default(0.0)
+  verified     Boolean @default(false)
+  
+  // Analytics data
+  lastUpdated  DateTime @default(now())
+  isActive     Boolean  @default(true)
+  
+  @@unique([influencerId, platform])
+  @@map("social_media_accounts")
+}
+
+// ================================
+// CAMPAIGN & MATCHING MODELS
+// ================================
+
+model Campaign {
+  id          String @id @default(cuid())
+  smeId       String
+  sme         SMEProfile   @relation(fields: [smeId], references: [id])
+  
+  // Campaign Details
+  title       String
+  description String
+  category    String
+  
+  // Budget & Timeline
+  budget      Float
+  startDate   DateTime?
+  endDate     DateTime?
+  
+  // Requirements
+  requirements Json // complex requirements data
+  targetAudience Json // target audience criteria
+  
+  // Status
+  status      String @default("DRAFT") // DRAFT, ACTIVE, PAUSED, COMPLETED, CANCELLED
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  applications CampaignApplication[]
+  recommendations RecommendationResult[]
+  analytics    CampaignAnalytics[]
+  
+  @@map("campaigns")
+}
+
+model CampaignApplication {
+  id           String @id @default(cuid())
+  campaignId   String
+  influencerId String
+  
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  influencer   InfluencerProfile @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  
+  // Application Data
+  proposedPrice Float?
+  message       String?
+  attachments   String[] // URLs to portfolio items
+  
+  // Status
+  status        String @default("PENDING") // PENDING, ACCEPTED, REJECTED, WITHDRAWN
+  
+  // Timestamps
+  appliedAt     DateTime @default(now())
+  respondedAt   DateTime?
+  
+  @@unique([campaignId, influencerId])
+  @@map("campaign_applications")
+}
+
+// ================================
+// AI MATCHING & RECOMMENDATION MODELS
+// ================================
+
+model RecommendationResult {
+  id           String @id @default(cuid())
+  campaignId   String
+  influencerId String
+  
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  influencer   InfluencerProfile @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  
+  // AI Scoring
+  overallScore     Float // 0-100
+  relevanceScore   Float // content relevance
+  audienceScore    Float // audience match
+  engagementScore  Float // engagement quality
+  reliabilityScore Float // past performance
+  budgetScore      Float // budget alignment
+  
+  // AI Explanation
+  matchReasons     String[] // reasons for the match
+  concerns         String[] // potential concerns
+  
+  // Metadata
+  algorithmVersion String
+  confidence       Float
+  
+  createdAt        DateTime @default(now())
+  
+  @@unique([campaignId, influencerId])
+  @@map("recommendation_results")
+}
+
+model MatchingCriteria {
+  id           String @id @default(cuid())
+  
+  // Criteria Configuration
+  name         String @unique
+  description  String?
+  
+  // Weights for different factors
+  categoryWeight    Float @default(0.25)
+  audienceWeight    Float @default(0.25)
+  engagementWeight  Float @default(0.20)
+  reliabilityWeight Float @default(0.15)
+  budgetWeight      Float @default(0.15)
+  
+  // AI/ML Configuration
+  mlModelVersion    String?
+  parameters        Json? // ML model parameters
+  
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("matching_criteria")
+}
+
+// ================================
+// ANALYTICS & METRICS MODELS
+// ================================
+
+model CampaignAnalytics {
+  id         String @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  // Performance Metrics
+  impressions      BigInt @default(0)
+  reach            BigInt @default(0)
+  clicks           Int    @default(0)
+  engagements      Int    @default(0)
+  conversions      Int    @default(0)
+  
+  // Financial Metrics
+  spend            Float  @default(0.0)
+  revenue          Float  @default(0.0)
+  roi              Float  @default(0.0)
+  cpm              Float  @default(0.0) // cost per mille
+  cpc              Float  @default(0.0) // cost per click
+  cpa              Float  @default(0.0) // cost per acquisition
+  
+  // Time-based data
+  recordedDate     DateTime
+  timeRange        String // 'daily', 'weekly', 'monthly'
+  
+  createdAt        DateTime @default(now())
+  
+  @@unique([campaignId, recordedDate, timeRange])
+  @@map("campaign_analytics")
+}
+
+model InfluencerAnalytics {
+  id           String @id @default(cuid())
+  influencerId String
+  influencer   InfluencerProfile @relation(fields: [influencerId], references: [id], onDelete: Cascade)
+  
+  // Performance Metrics
+  followers    Int   @default(0)
+  posts        Int   @default(0)
+  avgLikes     Float @default(0.0)
+  avgComments  Float @default(0.0)
+  avgShares    Float @default(0.0)
+  engagementRate Float @default(0.0)
+  
+  // Growth Metrics
+  followerGrowth   Int   @default(0)
+  engagementGrowth Float @default(0.0)
+  
+  // Content Analysis
+  topHashtags      String[]
+  topMentions      String[]
+  contentScore     Float @default(0.0)
+  
+  // Time-based data
+  recordedDate     DateTime
+  platform         String // 'instagram', 'tiktok', etc.
+  
+  createdAt        DateTime @default(now())
+  
+  @@unique([influencerId, recordedDate, platform])
+  @@map("influencer_analytics")
+}
+
+model SMEAnalytics {
+  id     String @id @default(cuid())
+  smeId  String
+  sme    SMEProfile @relation(fields: [smeId], references: [id], onDelete: Cascade)
+  
+  // Campaign Performance
+  totalCampaigns    Int   @default(0)
+  activeCampaigns   Int   @default(0)
+  completedCampaigns Int  @default(0)
+  
+  // Financial Metrics
+  totalSpend        Float @default(0.0)
+  totalRevenue      Float @default(0.0)
+  avgCampaignROI    Float @default(0.0)
+  
+  // Efficiency Metrics
+  avgTimeToHire     Int   @default(0) // in hours
+  successRate       Float @default(0.0)
+  satisfactionScore Float @default(0.0)
+  
+  // Time-based data
+  recordedDate      DateTime
+  timeRange         String // 'monthly', 'quarterly'
+  
+  createdAt         DateTime @default(now())
+  
+  @@unique([smeId, recordedDate, timeRange])
+  @@map("sme_analytics")
+}
+
+// ================================
+// SEARCH & FILTERING MODELS
+// ================================
+
+model SearchQuery {
+  id        String @id @default(cuid())
+  userId    String // user who performed the search
+  
+  // Search Parameters
+  query     String?
+  filters   Json // complex filter data
+  category  String?
+  
+  // Results
+  resultCount Int @default(0)
+  
+  // Performance tracking
+  clickThroughRate Float @default(0.0)
+  conversionRate   Float @default(0.0)
+  
+  createdAt DateTime @default(now())
+  
+  @@map("search_queries")
+}
+
+model FilterConfiguration {
+  id          String @id @default(cuid())
+  
+  // Filter Definition
+  name        String @unique
+  type        String // 'range', 'select', 'multiselect', 'boolean'
+  field       String // database field to filter on
+  
+  // Options for select filters
+  options     Json?
+  
+  // Validation
+  minValue    Float?
+  maxValue    Float?
+  
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("filter_configurations")
+}
+
+// ================================
+// SYSTEM & MONITORING MODELS
+// ================================
+
+model SystemMetrics {
+  id           String @id @default(cuid())
+  
+  // API Performance
+  endpoint     String
+  avgResponseTime Float
+  requestCount Int
+  errorRate    Float
+  
+  // AI/ML Performance
+  mlModelAccuracy     Float?
+  recommendationCTR   Float? // click-through rate
+  matchingSuccessRate Float?
+  
+  // System Health
+  cpuUsage     Float?
+  memoryUsage  Float?
+  dbConnections Int?
+  
+  recordedAt   DateTime @default(now())
+  
+  @@map("system_metrics")
+}
+
+model AuditLog {
+  id        String @id @default(cuid())
+  userId    String?
+  
+  // Action Details
+  action    String
+  entity    String // 'campaign', 'recommendation', 'user'
+  entityId  String?
+  
+  // Changes
+  oldValues Json?
+  newValues Json?
+  
+  // Context
+  ipAddress String?
+  userAgent String?
+  
+  createdAt DateTime @default(now())
+  
+  @@map("audit_logs")
+}

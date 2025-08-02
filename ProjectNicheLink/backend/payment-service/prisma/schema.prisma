@@ -1,0 +1,733 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - Basic user information
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String?
+  lastName  String?
+  role      String   @default("USER") // USER, ADMIN, SME, INFLUENCER
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations for disputes
+  initiatedDisputes DisputeResponse[] @relation("DisputeResponder")
+  assignedDisputes  Dispute[]        @relation("DisputeAdmin")
+  disputeResponses  Dispute[]        @relation("DisputeInitiator")
+  confirmations     ReleaseConfirmation[] @relation("ReleaseConfirmer")
+  
+  // Escrow relations
+  payerContracts    EscrowContract[] @relation("EscrowPayer")
+  payeeContracts    EscrowContract[] @relation("EscrowPayee")
+
+  @@map("users")
+}
+
+// Payment related models
+model EscrowContract {
+  id                String              @id @default(cuid())
+  contractAddress   String?             @unique // For blockchain contracts
+  collaborationId   String              @unique
+  
+  // Parties
+  smeId            String
+  influencerId     String
+  payerId          String?             // Legacy field for backward compatibility
+  payeeId          String?             // Legacy field for backward compatibility
+  
+  // Contract identifiers
+  contractNumber   String?             @unique
+  title            String?
+  projectTitle     String?
+  description      String?
+  
+  // Contract terms
+  totalAmount      Decimal             @db.Decimal(10, 2)
+  currency         String              @default("USD")
+  paymentMethod    PaymentMethod
+  
+  // Contract status
+  status           EscrowStatus        @default(CREATED)
+  
+  // Escrow settings
+  escrowFeeRate    Decimal             @db.Decimal(5, 4) @default(0.025) // 2.5%
+  platformFee      Decimal             @db.Decimal(10, 2)
+  
+  // Important dates
+  startDate        DateTime?
+  endDate          DateTime?
+  releaseDate      DateTime?
+  activatedAt      DateTime?
+  
+  // Legal and compliance
+  termsAcceptedAt  DateTime?
+  disputeDeadline  DateTime?
+  
+  // Metadata
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  // Relations
+  payer            User?               @relation("EscrowPayer", fields: [payerId], references: [id])
+  payee            User?               @relation("EscrowPayee", fields: [payeeId], references: [id])
+  payments         Payment[]
+  releases         FundRelease[]
+  disputesList     Dispute[]         @relation("DisputeContract")
+  milestones       EscrowMilestone[]
+  campaignContracts CampaignContract[]
+  
+  @@map("escrow_contracts")
+}
+
+model EscrowMilestone {
+  id               String              @id @default(cuid())
+  escrowContractId String
+  escrowContract   EscrowContract      @relation(fields: [escrowContractId], references: [id], onDelete: Cascade)
+  
+  // Milestone details
+  title            String
+  description      String?
+  amount           Decimal             @db.Decimal(10, 2)
+  percentage       Decimal             @db.Decimal(5, 2) // Percentage of total amount
+  milestoneNumber  Int?                // Legacy field for ordering
+  type             String?             @default("STANDARD") // Milestone type
+  
+  // Deliverables
+  deliverables     String[]            // Array of deliverable descriptions
+  dueDate          DateTime?
+  
+  // Status and approval
+  status           MilestoneStatus     @default(PENDING)
+  submittedAt      DateTime?
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  completedAt      DateTime?
+  
+  // Evidence and proof of work
+  submissionNotes  String?
+  submissionFiles  String[]            // URLs to uploaded files
+  approvalNotes    String?
+  rejectionReason  String?
+  
+  // Order in the contract
+  orderIndex       Int
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  // Relations
+  autoRelease      AutoRelease?
+  confirmations    ReleaseConfirmation[]
+  fundReleases     FundRelease[]       @relation("MilestoneFundReleases")
+  tasks            TaskItem[]
+  contentSubmissions ContentSubmission[]
+  
+  @@map("escrow_milestones")
+}
+
+model Payment {
+  id               String              @id @default(cuid())
+  escrowContractId String
+  escrowContract   EscrowContract      @relation(fields: [escrowContractId], references: [id])
+  
+  // Payment details
+  amount           Decimal             @db.Decimal(10, 2)
+  currency         String              @default("USD")
+  paymentMethod    PaymentMethod
+  
+  // External payment references
+  stripePaymentId  String?
+  paypalPaymentId  String?
+  blockchainTxHash String?
+  externalPaymentId String?            // Generic external payment ID
+  
+  // Payment metadata
+  description      String?
+  reference        String?             @unique
+  
+  // Status tracking
+  status           PaymentStatus       @default(PENDING)
+  paidAt           DateTime?
+  failedAt         DateTime?
+  refundedAt       DateTime?
+  
+  // Failure tracking
+  failureReason    String?
+  retryCount       Int                 @default(0)
+  lastRetryAt      DateTime?
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  @@map("payments")
+}
+
+model FundRelease {
+  id               String              @id @default(cuid())
+  escrowContractId String
+  escrowContract   EscrowContract      @relation(fields: [escrowContractId], references: [id])
+  
+  // Release details
+  amount           Decimal             @db.Decimal(10, 2)
+  currency         String              @default("USD") // Add currency field
+  recipientId      String              // Usually influencer ID
+  releaseReason    ReleaseReason
+  
+  // Milestone reference (if applicable)
+  milestoneId      String?
+  milestone        EscrowMilestone?    @relation("MilestoneFundReleases", fields: [milestoneId], references: [id])
+  
+  // Processing details
+  status           ReleaseStatus       @default(PENDING)
+  initiatedBy      String              // User ID who initiated release
+  approvedBy       String?             // User ID who approved (if required)
+  
+  // External transaction references
+  transactionHash  String?
+  paymentReference String?
+  
+  // Timing
+  scheduledFor     DateTime?
+  processedAt      DateTime?
+  completedAt      DateTime?
+  
+  // Notes and metadata
+  notes            String?
+  internalNotes    String?
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  @@map("fund_releases")
+}
+
+model DisputeMessage {
+  id          String           @id @default(cuid())
+  disputeId   String
+  dispute     Dispute          @relation("DisputeMessages", fields: [disputeId], references: [id], onDelete: Cascade)
+  
+  senderId    String           // User ID of sender
+  message     String
+  attachments String[]         // URLs to attachment files
+  isInternal  Boolean          @default(false) // Internal admin notes
+  
+  createdAt   DateTime         @default(now())
+  
+  @@map("dispute_messages")
+}
+
+model WalletAccount {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  
+  // Balance tracking
+  availableBalance Decimal         @db.Decimal(10, 2) @default(0)
+  pendingBalance   Decimal         @db.Decimal(10, 2) @default(0)
+  escrowBalance    Decimal         @db.Decimal(10, 2) @default(0)
+  
+  // Currency
+  currency        String           @default("USD")
+  
+  // Wallet settings
+  isActive        Boolean          @default(true)
+  isVerified      Boolean          @default(false)
+  
+  // KYC and verification
+  kycStatus       KYCStatus        @default(PENDING)
+  kycDocuments    String[]         // URLs to KYC documents
+  verifiedAt      DateTime?
+  
+  // Bank account details (encrypted)
+  bankAccount     Json?            // Encrypted bank account details
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  // Relations
+  transactions    WalletTransaction[]
+  
+  @@map("wallet_accounts")
+}
+
+model WalletTransaction {
+  id               String              @id @default(cuid())
+  walletAccountId  String
+  walletAccount    WalletAccount       @relation(fields: [walletAccountId], references: [id])
+  
+  // Transaction details
+  type             TransactionType
+  amount           Decimal             @db.Decimal(10, 2)
+  currency         String              @default("USD")
+  
+  // Balance impact
+  balanceBefore    Decimal             @db.Decimal(10, 2)
+  balanceAfter     Decimal             @db.Decimal(10, 2)
+  
+  // References
+  reference        String?             // External reference
+  escrowContractId String?             // Related escrow contract
+  description      String
+  
+  // Status
+  status           TransactionStatus   @default(COMPLETED)
+  
+  // Metadata
+  metadata         Json?
+  
+  createdAt        DateTime            @default(now())
+  
+  @@map("wallet_transactions")
+}
+
+// Enums
+enum PaymentMethod {
+  STRIPE_CARD
+  STRIPE_BANK
+  STRIPE           // Legacy enum value for backward compatibility
+  PAYPAL
+  VNPAY
+  MOMO
+  BAOKIM
+  NGANLUONG
+  CRYPTO_ETH
+  CRYPTO_BTC
+  CRYPTO_USDC
+  CRYPTO           // Legacy enum value for backward compatibility
+  BANK_TRANSFER
+  WIRE_TRANSFER
+}
+
+enum EscrowStatus {
+  DRAFT            // Initial draft state
+  CREATED
+  PENDING_PAYMENT  // Waiting for payment
+  PENDING          // Generic pending state
+  FUNDED
+  ACTIVE
+  MILESTONE_PENDING
+  MILESTONE_APPROVED
+  APPROVED         // Generic approved state
+  DISPUTED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  EXPIRED
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+  DISPUTED
+}
+
+enum ReleaseReason {
+  MILESTONE_COMPLETED
+  CONTRACT_COMPLETED
+  DISPUTE_RESOLVED
+  ADMIN_OVERRIDE
+  EARLY_RELEASE
+}
+
+enum ReleaseStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum DisputeCategory {
+  PAYMENT_ISSUE
+  DELIVERABLE_QUALITY
+  DEADLINE_MISSED
+  COMMUNICATION_BREAKDOWN
+  CONTRACT_VIOLATION
+  FRAUD_SUSPECTED
+  OTHER
+}
+
+enum DisputeSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DisputeStatus {
+  OPEN
+  IN_REVIEW
+  PENDING_EVIDENCE
+  UNDER_ARBITRATION
+  RESOLVED
+  CLOSED
+  ESCALATED
+}
+
+enum ResolutionType {
+  FULL_REFUND
+  PARTIAL_REFUND
+  RELEASE_FUNDS
+  REWORK_REQUIRED
+  CONTRACT_TERMINATION
+  PENALTY_APPLIED
+  NO_ACTION
+}
+
+enum KYCStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  ESCROW_HOLD
+  ESCROW_RELEASE
+  FEE_DEDUCTION
+  REFUND
+  PENALTY
+  BONUS
+  ADJUSTMENT
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REVERSED
+}
+
+// Bảng dispute cho việc giải quyết tranh chấp
+model Dispute {
+  id               String   @id @default(cuid())
+  escrowContractId String
+  initiatorId      String
+  reason           String
+  description      String
+  evidence         String[] // URLs của file evidence
+  requestedAction  String   // REFUND, RELEASE, PARTIAL_REFUND
+  requestedAmount  Decimal?
+  status           String   @default("PENDING") // PENDING, IN_REVIEW, RESOLVED
+  priority         String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  assignedAdminId  String?
+  assignedAt       DateTime?
+  resolution       String?  // APPROVE_REFUND, APPROVE_RELEASE, PARTIAL_REFUND, REJECT
+  adminNotes       String?
+  refundAmount     Decimal?
+  resolvedAt       DateTime?
+  resolvedBy       String?
+  dueDate          DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  escrowContract EscrowContract @relation("DisputeContract", fields: [escrowContractId], references: [id])
+  initiator      User @relation("DisputeInitiator", fields: [initiatorId], references: [id])
+  assignedAdmin  User? @relation("DisputeAdmin", fields: [assignedAdminId], references: [id])
+  responses      DisputeResponse[]
+  messages       DisputeMessage[] @relation("DisputeMessages")
+
+  @@map("disputes")
+}
+
+// Bảng response cho dispute
+model DisputeResponse {
+  id          String   @id @default(cuid())
+  disputeId   String
+  responderId String
+  response    String
+  evidence    String[] // URLs của file evidence
+  createdAt   DateTime @default(now())
+
+  // Relations
+  dispute   Dispute @relation(fields: [disputeId], references: [id])
+  responder User    @relation("DisputeResponder", fields: [responderId], references: [id])
+
+  @@map("dispute_responses")
+}
+
+// Bảng auto-release cho việc tự động giải phóng tiền
+model AutoRelease {
+  id                   String    @id @default(cuid())
+  milestoneId          String    @unique
+  releaseAt            DateTime
+  timeoutHours         Int
+  requiresConfirmation Boolean   @default(true)
+  warningHours         Int[]     // Giờ cảnh báo trước khi release
+  status               String    @default("SCHEDULED") // SCHEDULED, WARNING_SENT, WAITING_CONFIRMATION, EXECUTED, CANCELLED, FAILED
+  retryCount           Int       @default(0)
+  lastError            String?
+  executedAt           DateTime?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  milestone EscrowMilestone @relation(fields: [milestoneId], references: [id])
+
+  @@map("auto_releases")
+}
+
+// Bảng confirmation cho auto-release
+model ReleaseConfirmation {
+  id          String   @id @default(cuid())
+  milestoneId String
+  confirmerId String
+  confirmedAt DateTime @default(now())
+  notes       String?
+
+  // Relations
+  milestone EscrowMilestone @relation(fields: [milestoneId], references: [id])
+  confirmer User            @relation("ReleaseConfirmer", fields: [confirmerId], references: [id])
+
+  @@map("release_confirmations")
+}
+
+// Campaign Management Models
+model Campaign {
+  id                String              @id @default(cuid())
+  smeId            String
+  title            String
+  description      String?
+  category         String[]
+  budget           Decimal             @db.Decimal(10, 2)
+  currency         String              @default("VND")
+  status           CampaignStatus      @default(DRAFT)
+  
+  // Campaign timeline
+  startDate        DateTime?
+  endDate          DateTime?
+  
+  // Target metrics
+  targetReach      Int?
+  targetEngagement Decimal?            @db.Decimal(5, 2)
+  
+  // Relationships
+  contracts        CampaignContract[]
+  tasks            TaskItem[]
+  content          ContentSubmission[]
+  wizardSession    WizardSession?
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  @@map("campaigns")
+}
+
+model CampaignContract {
+  id               String              @id @default(cuid())
+  campaignId       String
+  campaign         Campaign            @relation(fields: [campaignId], references: [id])
+  kocId            String
+  
+  // Contract terms
+  contractTerms    Json                // Flexible contract terms
+  signatures       DigitalSignature[]
+  status           ContractStatus      @default(DRAFT)
+  
+  // Link to escrow system
+  escrowContractId String?
+  escrowContract   EscrowContract?     @relation(fields: [escrowContractId], references: [id])
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  @@map("campaign_contracts")
+}
+
+model WizardSession {
+  id               String              @id @default(cuid())
+  campaignId       String              @unique
+  campaign         Campaign            @relation(fields: [campaignId], references: [id])
+  currentStep      String
+  responses        Json                // Store wizard responses
+  status           WizardStatus        @default(IN_PROGRESS)
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  @@map("wizard_sessions")
+}
+
+model TaskItem {
+  id               String              @id @default(cuid())
+  campaignId       String?
+  campaign         Campaign?           @relation(fields: [campaignId], references: [id])
+  milestoneId      String?
+  milestone        EscrowMilestone?    @relation(fields: [milestoneId], references: [id])
+  
+  assigneeId       String
+  title            String
+  description      String?
+  dueDate          DateTime?
+  status           TaskStatus          @default(TODO)
+  priority         TaskPriority        @default(MEDIUM)
+  
+  dependencies     String[]            // Array of task IDs
+  attachments      String[]            // File URLs
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  @@map("task_items")
+}
+
+model ContentSubmission {
+  id               String              @id @default(cuid())
+  campaignId       String
+  campaign         Campaign            @relation(fields: [campaignId], references: [id])
+  milestoneId      String?
+  milestone        EscrowMilestone?    @relation(fields: [milestoneId], references: [id])
+  kocId            String
+  
+  contentType      ContentType
+  files            ContentFile[]
+  description      String?
+  caption          String?
+  hashtags         String[]
+  scheduledDate    DateTime?
+  
+  status           ContentStatus       @default(DRAFT)
+  reviews          ContentReview[]
+  
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  
+  @@map("content_submissions")
+}
+
+model DigitalSignature {
+  id               String              @id @default(cuid())
+  contractId       String
+  contract         CampaignContract    @relation(fields: [contractId], references: [id])
+  signerId         String
+  signature        String              // Digital signature data
+  signedAt         DateTime            @default(now())
+  ipAddress        String?
+  userAgent        String?
+  
+  @@map("digital_signatures")
+}
+
+model ContentFile {
+  id               String              @id @default(cuid())
+  submissionId     String
+  submission       ContentSubmission   @relation(fields: [submissionId], references: [id])
+  filename         String
+  originalName     String
+  mimeType         String
+  size             Int
+  url              String
+  
+  createdAt        DateTime            @default(now())
+  
+  @@map("content_files")
+}
+
+model ContentReview {
+  id               String              @id @default(cuid())
+  submissionId     String
+  submission       ContentSubmission   @relation(fields: [submissionId], references: [id])
+  reviewerId       String
+  status           ReviewStatus
+  feedback         String?
+  reviewedAt       DateTime            @default(now())
+  
+  @@map("content_reviews")
+}
+
+// Campaign Management Enums
+enum CampaignStatus {
+  DRAFT
+  CREATED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  SIGNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum WizardStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ContentType {
+  IMAGE
+  VIDEO
+  TEXT
+  STORY
+  REEL
+  BLOG_POST
+  LIVE_STREAM
+}
+
+enum ContentStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  REVISION_REQUIRED
+  PUBLISHED
+}
+
+enum ReviewStatus {
+  APPROVED
+  REJECTED
+  REVISION_REQUIRED
+}

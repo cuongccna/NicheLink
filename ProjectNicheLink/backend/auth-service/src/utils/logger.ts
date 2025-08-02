@@ -19,46 +19,44 @@ const productionFormat = winston.format.combine(
   winston.format.json()
 );
 
-const transports = [
-  new winston.transports.Console({
-    format: process.env.NODE_ENV === 'production' ? productionFormat : developmentFormat
-  })
-];
-
-// Add file transports in production
-if (process.env.NODE_ENV === 'production') {
-  transports.push(
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-      format: productionFormat
-    }),
-    new winston.transports.File({
-      filename: 'logs/combined.log',
-      format: productionFormat
-    })
-  );
-}
-
+// Create logger with console transport
 export const logger = winston.createLogger({
   level: logLevel,
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true })
   ),
-  transports,
+  transports: [
+    new winston.transports.Console({
+      format: process.env.NODE_ENV === 'production' ? productionFormat : developmentFormat
+    })
+  ],
   // Don't exit on handled exceptions
   exitOnError: false
 });
 
-// Handle uncaught exceptions and unhandled rejections
-logger.exceptions.handle(
-  new winston.transports.File({ filename: 'logs/exceptions.log' })
-);
+// Add file transports in production
+if (process.env.NODE_ENV === 'production') {
+  logger.add(new winston.transports.File({
+    filename: 'logs/error.log',
+    level: 'error',
+    format: productionFormat
+  }));
+  
+  logger.add(new winston.transports.File({
+    filename: 'logs/combined.log',
+    format: productionFormat
+  }));
+  
+  // Handle uncaught exceptions and unhandled rejections
+  logger.exceptions.handle(
+    new winston.transports.File({ filename: 'logs/exceptions.log' })
+  );
 
-logger.rejections.handle(
-  new winston.transports.File({ filename: 'logs/rejections.log' })
-);
+  logger.rejections.handle(
+    new winston.transports.File({ filename: 'logs/rejections.log' })
+  );
+}
 
 // Create a stream object for Morgan
 export const loggerStream = {
