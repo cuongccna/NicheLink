@@ -1,9 +1,11 @@
 ﻿import { AuthGuard } from '@/components/AuthGuard';
+import RoleDebugger from '@/components/RoleDebugger';
 import { ThemedText } from '@/components/ThemedText';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { COLORS } from '@/constants/DesignSystem';
 import { useAuth } from '@/context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Dimensions, SafeAreaView, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -14,13 +16,51 @@ const { width } = Dimensions.get('window');
 
 function HomeContent() {
   const { user } = useAuth();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('relevance');
+
+  // Navigation functions for SME
+  const navigateToCampaignDetail = (campaignId: string) => {
+    router.push('/screens/campaign-detail-sme' as any);
+  };
+
+  const navigateToKOCProfile = (kocId: string) => {
+    router.push('/screens/koc-profile-an' as any);
+  };
+
+  const navigateToChat = (userId: string) => {
+    router.push('/screens/chat' as any);
+  };
+
+  const navigateToNotifications = () => {
+    router.push('/screens/notifications' as any);
+  };
+
+  const navigateToContentReview = () => {
+    router.push('/screens/content-review' as any);
+  };
+
+  // Navigation functions for KOC
+  const navigateToCampaignDetailKOC = (campaignId: string) => {
+    router.push('/screens/campaign-detail-koc' as any);
+  };
+
+  const navigateToCompanyProfile = (companyId: string) => {
+    router.push('/screens/company-profile' as any);
+  };
+
+  const navigateToWorkspace = (taskId: string) => {
+    router.push('/screens/workspace' as any);
+  };
 
   // SME Dashboard
   const renderSMEDashboard = () => (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Role Debug Panel */}
+        <RoleDebugger />
+        
         {/* Top Navigation Header */}
         <View style={styles.topNavigation}>
           <View style={styles.logoSection}>
@@ -43,7 +83,10 @@ function HomeContent() {
                 placeholderTextColor={COLORS.light.subtext}
               />
             </View>
-            <TouchableOpacity style={[styles.notificationBtn, styles.notificationBtnSME]}>
+            <TouchableOpacity 
+              style={[styles.notificationBtn, styles.notificationBtnSME]}
+              onPress={navigateToNotifications}
+            >
               <IconSymbol name="bell.fill" size={20} color="#FFFFFF" />
               <View style={styles.notificationBadge} />
             </TouchableOpacity>
@@ -111,7 +154,10 @@ function HomeContent() {
         <View style={styles.sectionSME}>
           <ThemedText style={styles.sectionTitle}>Hành động nhanh</ThemedText>
           <View style={styles.actionsGrid}>
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => router.push('/create-campaign' as any)}
+            >
               <LinearGradient 
                 colors={[COLORS.primary, '#4DB6AC']} 
                 style={styles.actionGradient}
@@ -121,7 +167,10 @@ function HomeContent() {
               <ThemedText style={styles.actionText}>Tạo chiến dịch</ThemedText>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => router.push('/screens/explore' as any)}
+            >
               <LinearGradient 
                 colors={[COLORS.secondary, '#FFAB91']} 
                 style={styles.actionGradient}
@@ -131,7 +180,10 @@ function HomeContent() {
               <ThemedText style={styles.actionText}>Tìm KOC</ThemedText>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => router.push('/screens/campaign-management' as any)}
+            >
               <LinearGradient 
                 colors={[COLORS.success, '#66BB6A']} 
                 style={styles.actionGradient}
@@ -141,7 +193,10 @@ function HomeContent() {
               <ThemedText style={styles.actionText}>Báo cáo</ThemedText>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => router.push('/profile' as any)}
+            >
               <LinearGradient 
                 colors={[COLORS.info, '#42A5F5']} 
                 style={styles.actionGradient}
@@ -157,7 +212,10 @@ function HomeContent() {
         <View style={styles.sectionSME}>
           <ThemedText style={styles.sectionTitle}>Hoạt động gần đây</ThemedText>
           <View style={styles.activityCard}>
-            <View style={styles.activityItem}>
+            <TouchableOpacity 
+              style={styles.activityItem}
+              onPress={() => navigateToCampaignDetail('campaign_001')}
+            >
               <View style={[styles.activityIcon, { backgroundColor: COLORS.success + '20' }]}>
                 <IconSymbol name="checkmark.circle.fill" size={16} color={COLORS.success} />
               </View>
@@ -165,9 +223,13 @@ function HomeContent() {
                 <ThemedText style={styles.activityTitle}>Chiến dịch "Beauty Summer" hoàn thành</ThemedText>
                 <ThemedText style={styles.activityTime}>2 giờ trước</ThemedText>
               </View>
-            </View>
+              <IconSymbol name="chevron.right" size={16} color={COLORS.light.subtext} />
+            </TouchableOpacity>
             
-            <View style={styles.activityItem}>
+            <TouchableOpacity 
+              style={styles.activityItem}
+              onPress={() => navigateToKOCProfile('koc_001')}
+            >
               <View style={[styles.activityIcon, { backgroundColor: COLORS.primary + '20' }]}>
                 <IconSymbol name="person.badge.plus.fill" size={16} color={COLORS.primary} />
               </View>
@@ -175,7 +237,22 @@ function HomeContent() {
                 <ThemedText style={styles.activityTitle}>3 KOC mới tham gia hệ thống</ThemedText>
                 <ThemedText style={styles.activityTime}>5 giờ trước</ThemedText>
               </View>
-            </View>
+              <IconSymbol name="chevron.right" size={16} color={COLORS.light.subtext} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.activityItem}
+              onPress={() => navigateToContentReview()}
+            >
+              <View style={[styles.activityIcon, { backgroundColor: COLORS.warning + '20' }]}>
+                <IconSymbol name="eye.fill" size={16} color={COLORS.warning} />
+              </View>
+              <View style={styles.activityContent}>
+                <ThemedText style={styles.activityTitle}>5 nội dung chờ duyệt</ThemedText>
+                <ThemedText style={styles.activityTime}>1 ngày trước</ThemedText>
+              </View>
+              <IconSymbol name="chevron.right" size={16} color={COLORS.light.subtext} />
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -184,10 +261,7 @@ function HomeContent() {
       <TouchableOpacity 
         style={styles.fab}
         activeOpacity={0.8}
-        onPress={() => {
-          // TODO: Navigate to Create Campaign screen
-          console.log('Create Campaign pressed');
-        }}
+        onPress={() => router.push('/create-campaign' as any)}
       >
         <LinearGradient
           colors={[COLORS.primary, '#4DB6AC']}
@@ -203,6 +277,9 @@ function HomeContent() {
   const renderKOCFeed = () => (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Role Debug Panel */}
+        <RoleDebugger />
+        
         {/* Top Navigation Header */}
         <View style={styles.topNavigation}>
           <View style={styles.logoSection}>
@@ -225,7 +302,10 @@ function HomeContent() {
                 placeholderTextColor={COLORS.light.subtext}
               />
             </View>
-            <TouchableOpacity style={[styles.notificationBtn, styles.notificationBtnKOC]}>
+            <TouchableOpacity 
+              style={[styles.notificationBtn, styles.notificationBtnKOC]}
+              onPress={navigateToNotifications}
+            >
               <IconSymbol name="bell.fill" size={20} color="#FFFFFF" />
               <View style={styles.notificationBadge} />
             </TouchableOpacity>
@@ -326,7 +406,10 @@ function HomeContent() {
           {/* Enhanced Campaign Card for KOC */}
           <View style={styles.taskCard}>
             <View style={styles.taskHeader}>
-              <View style={styles.brandInfo}>
+              <TouchableOpacity 
+                style={styles.brandInfo}
+                onPress={() => navigateToCompanyProfile('beauty_brand_x')}
+              >
                 <View style={styles.brandAvatar}>
                   <IconSymbol name="sparkles" size={16} color={COLORS.secondary} />
                 </View>
@@ -334,7 +417,7 @@ function HomeContent() {
                   <ThemedText style={styles.brandName}>Beauty Brand X</ThemedText>
                   <ThemedText style={styles.campaignCategory}>Skincare • Beauty</ThemedText>
                 </View>
-              </View>
+              </TouchableOpacity>
               <View style={styles.paymentTag}>
                 <IconSymbol name="banknote.fill" size={12} color={COLORS.success} />
                 <ThemedText style={styles.paymentText}>₫2-5M</ThemedText>
@@ -687,6 +770,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderRadius: 8,
   },
   activityIcon: {
     width: 32,

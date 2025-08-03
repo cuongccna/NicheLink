@@ -1,167 +1,330 @@
 import { AuthGuard } from '@/components/AuthGuard';
+import RoleDebugger from '@/components/RoleDebugger';
 import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { COLORS } from '@/constants/DesignSystem';
+import { useAuth } from '@/context/AuthContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, TouchableOpacity } from 'react-native';
-import { useAuth } from '../../context/AuthContext';
+import {
+    Alert,
+    Dimensions,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+
+const { width } = Dimensions.get('window');
+
+interface MenuSection {
+  title: string;
+  items: MenuItem[];
+}
+
+interface MenuItem {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  action: () => void;
+  toggle?: boolean;
+  value?: boolean;
+  showChevron?: boolean;
+  dangerous?: boolean;
+}
 
 function ProfileContent() {
   const { user, logout } = useAuth();
-  const colorScheme = useColorScheme();
+  const router = useRouter();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(colorScheme === 'dark');
+  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const [marketingEnabled, setMarketingEnabled] = useState(true);
 
   const handleLogout = async () => {
-    await logout();
+    Alert.alert(
+      'Đăng xuất',
+      'Bạn có chắc chắn muốn đăng xuất?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        { 
+          text: 'Đăng xuất', 
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+          }
+        },
+      ]
+    );
   };
 
-  const menuSections = [
-    {
-      title: 'Tài khoản',
-      items: [
-        { icon: 'person.circle', title: 'Thông tin cá nhân', action: () => console.log('Profile') },
-        { icon: 'creditcard', title: 'Phương thức thanh toán', action: () => console.log('Payment') },
-        { icon: 'doc.text', title: 'Hợp đồng của tôi', action: () => console.log('Contracts') },
-        { icon: 'chart.bar', title: 'Thống kê & Báo cáo', action: () => console.log('Analytics') },
-      ]
-    },
-    {
-      title: 'Cài đặt',
-      items: [
-        { 
-          icon: 'bell', 
-          title: 'Thông báo', 
-          action: () => setNotificationsEnabled(!notificationsEnabled),
-          toggle: true,
-          value: notificationsEnabled 
-        },
-        { 
-          icon: 'moon', 
-          title: 'Chế độ tối', 
-          action: () => setDarkModeEnabled(!darkModeEnabled),
-          toggle: true,
-          value: darkModeEnabled 
-        },
-        { icon: 'globe', title: 'Ngôn ngữ', action: () => console.log('Language'), subtitle: 'Tiếng Việt' },
-        { icon: 'questionmark.circle', title: 'Trợ giúp & Hỗ trợ', action: () => console.log('Help') },
-      ]
-    },
-    {
-      title: 'Pháp lý',
-      items: [
-        { icon: 'doc.plaintext', title: 'Điều khoản sử dụng', action: () => console.log('Terms') },
-        { icon: 'hand.raised', title: 'Chính sách bảo mật', action: () => console.log('Privacy') },
-        { icon: 'info.circle', title: 'Về chúng tôi', action: () => console.log('About') },
-      ]
+  // Get user stats based on role
+  const getUserStats = () => {
+    if (user?.role === 'SME') {
+      return [
+        { label: 'Chiến dịch hoàn thành', value: '12', color: COLORS.success },
+        { label: 'Đánh giá trung bình', value: '4.8', color: COLORS.warning },
+        { label: 'Người theo dõi', value: '85K', color: COLORS.primary },
+      ];
+    } else {
+      return [
+        { label: 'Nhiệm vụ hoàn thành', value: '24', color: COLORS.success },
+        { label: 'Đánh giá trung bình', value: '4.9', color: COLORS.warning },
+        { label: 'Người theo dõi', value: '12.5K', color: COLORS.secondary },
+      ];
     }
-  ];
+  };
 
-  const renderMenuItem = (item: any, index: number) => (
-    <TouchableOpacity 
-      key={index} 
-      style={[styles.menuItem, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
+  // Get role-specific menu sections
+  const getMenuSections = (): MenuSection[] => {
+    const baseAccount = [
+      { 
+        icon: 'person.circle.fill', 
+        title: 'Thông tin cá nhân', 
+        action: () => router.push('/profile-edit' as any),
+        showChevron: true,
+      },
+      { 
+        icon: 'creditcard.fill', 
+        title: 'Phương thức thanh toán', 
+        action: () => router.push('/payment-history' as any),
+        showChevron: true,
+      },
+      { 
+        icon: 'doc.text.fill', 
+        title: 'Hợp đồng của tôi', 
+        action: () => router.push('/contracts' as any),
+        showChevron: true,
+      },
+    ];
+
+    if (user?.role === 'SME') {
+      baseAccount.push({
+        icon: 'chart.bar.fill',
+        title: 'Thống kê & Báo cáo',
+        action: () => router.push('/campaign-management' as any),
+        showChevron: true,
+      });
+    } else {
+      baseAccount.push({
+        icon: 'star.fill',
+        title: 'Đánh giá & Phản hồi',
+        action: () => router.push('/reviews' as any),
+        showChevron: true,
+      });
+    }
+
+    return [
+      {
+        title: 'Tài khoản',
+        items: baseAccount,
+      },
+      {
+        title: 'Cài đặt',
+        items: [
+          { 
+            icon: 'bell.fill', 
+            title: 'Thông báo', 
+            action: () => setNotificationsEnabled(!notificationsEnabled),
+            toggle: true,
+            value: notificationsEnabled 
+          },
+          { 
+            icon: 'envelope.fill', 
+            title: 'Email tiếp thị', 
+            action: () => setMarketingEnabled(!marketingEnabled),
+            toggle: true,
+            value: marketingEnabled 
+          },
+          { 
+            icon: 'moon.fill', 
+            title: 'Chế độ tối', 
+            action: () => setDarkModeEnabled(!darkModeEnabled),
+            toggle: true,
+            value: darkModeEnabled 
+          },
+          { 
+            icon: 'globe', 
+            title: 'Ngôn ngữ', 
+            subtitle: 'Tiếng Việt',
+            action: () => router.push('/language-settings' as any),
+            showChevron: true,
+          },
+        ]
+      },
+      {
+        title: 'Hỗ trợ',
+        items: [
+          { 
+            icon: 'questionmark.circle.fill', 
+            title: 'Trợ giúp & Hỗ trợ', 
+            action: () => router.push('/help' as any),
+            showChevron: true,
+          },
+          { 
+            icon: 'doc.text', 
+            title: 'Điều khoản sử dụng', 
+            action: () => router.push('/terms' as any),
+            showChevron: true,
+          },
+          { 
+            icon: 'hand.raised.fill', 
+            title: 'Chính sách bảo mật', 
+            action: () => router.push('/privacy' as any),
+            showChevron: true,
+          },
+        ]
+      },
+      {
+        title: 'Developer Tools (Testing)',
+        items: [
+          { 
+            icon: 'wrench.and.screwdriver.fill', 
+            title: 'Thay đổi Role', 
+            subtitle: `Hiện tại: ${user?.role}`,
+            action: () => router.push('/role-settings' as any),
+            showChevron: true,
+          },
+        ]
+      },
+      {
+        title: '',
+        items: [
+          { 
+            icon: 'rectangle.portrait.and.arrow.right', 
+            title: 'Đăng xuất', 
+            action: handleLogout,
+            dangerous: true,
+          },
+        ]
+      }
+    ];
+  };
+
+  // Render menu item
+  const renderMenuItem = (item: MenuItem, index: number) => (
+    <TouchableOpacity
+      key={index}
+      style={[styles.menuItem, item.dangerous && styles.menuItemDangerous]}
       onPress={item.action}
     >
-      <ThemedView style={styles.menuItemLeft}>
-        <IconSymbol name={item.icon} size={20} color={Colors[colorScheme ?? 'light'].icon} />
-        <ThemedView style={styles.menuItemText}>
-          <ThemedText style={styles.menuItemTitle}>{item.title}</ThemedText>
+      <View style={styles.menuItemLeft}>
+        <View style={[
+          styles.menuIcon,
+          item.dangerous && styles.menuIconDangerous
+        ]}>
+          <IconSymbol 
+            name={item.icon as any} 
+            size={20} 
+            color={item.dangerous ? COLORS.error : COLORS.primary} 
+          />
+        </View>
+        <View style={styles.menuTextContainer}>
+          <ThemedText style={[
+            styles.menuTitle,
+            item.dangerous && styles.menuTitleDangerous
+          ]}>
+            {item.title}
+          </ThemedText>
           {item.subtitle && (
-            <ThemedText style={styles.menuItemSubtitle}>{item.subtitle}</ThemedText>
+            <ThemedText style={styles.menuSubtitle}>
+              {item.subtitle}
+            </ThemedText>
           )}
-        </ThemedView>
-      </ThemedView>
-      
-      {item.toggle ? (
-        <Switch
-          value={item.value}
-          onValueChange={item.action}
-          trackColor={{ false: '#E5E7EB', true: Colors[colorScheme ?? 'light'].tint }}
-          thumbColor={item.value ? 'white' : '#F3F4F6'}
-        />
-      ) : (
-        <IconSymbol name="chevron.right" size={16} color={Colors[colorScheme ?? 'light'].tabIconDefault} />
-      )}
+        </View>
+      </View>
+
+      <View style={styles.menuItemRight}>
+        {item.toggle ? (
+          <Switch
+            value={item.value}
+            onValueChange={item.action}
+            trackColor={{ false: COLORS.light.border, true: COLORS.primary + '40' }}
+            thumbColor={item.value ? COLORS.primary : COLORS.light.subtext}
+          />
+        ) : item.showChevron ? (
+          <IconSymbol name="chevron.right" size={16} color={COLORS.light.subtext} />
+        ) : null}
+      </View>
     </TouchableOpacity>
   );
 
-  return (
-    <ScrollView style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title" style={styles.title}>Hồ sơ</ThemedText>
-      </ThemedView>
+  // Render section
+  const renderSection = (section: MenuSection, index: number) => (
+    <View key={index} style={styles.section}>
+      {section.title && (
+        <ThemedText style={styles.sectionTitle}>{section.title}</ThemedText>
+      )}
+      <View style={styles.sectionContent}>
+        {section.items.map(renderMenuItem)}
+      </View>
+    </View>
+  );
 
-      {/* Profile Card */}
-      <TouchableOpacity style={[styles.profileCard, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
-        <ThemedView style={styles.profileInfo}>
-          <ThemedView style={[styles.avatarContainer, { backgroundColor: Colors[colorScheme ?? 'light'].tint }]}>
-            <ThemedText style={styles.avatarText}>
-              {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-            </ThemedText>
-          </ThemedView>
-          
-          <ThemedView style={styles.userInfo}>
-            <ThemedText type="defaultSemiBold" style={styles.userName}>
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Header with gradient */}
+        <LinearGradient
+          colors={user?.role === 'SME' ? [COLORS.primary, '#00C9B7'] : [COLORS.secondary, '#FFAB91']}
+          style={styles.header}
+        >
+          {/* Profile info */}
+          <View style={styles.profileSection}>
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatar}>
+                <ThemedText style={styles.avatarText}>
+                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+                </ThemedText>
+              </View>
+              <TouchableOpacity style={styles.editButton}>
+                <IconSymbol name="pencil" size={16} color="white" />
+              </TouchableOpacity>
+            </View>
+            
+            <ThemedText style={styles.userName}>
               {user?.firstName} {user?.lastName}
             </ThemedText>
-            <ThemedText style={styles.userEmail}>{user?.email}</ThemedText>
-            <ThemedView style={styles.userRole}>
-              <ThemedText style={[styles.roleText, { backgroundColor: Colors[colorScheme ?? 'light'].tint }]}>
-                {user?.role === 'SME' ? 'Doanh nghiệp' : 'Influencer'}
+            <ThemedText style={styles.userEmail}>
+              {user?.email}
+            </ThemedText>
+            <View style={styles.roleBadge}>
+              <ThemedText style={styles.roleText}>
+                {user?.role === 'SME' ? 'Doanh nghiệp' : 'KOC/Influencer'}
               </ThemedText>
-            </ThemedView>
-          </ThemedView>
-        </ThemedView>
-        
-        <IconSymbol name="chevron.right" size={20} color={Colors[colorScheme ?? 'light'].tabIconDefault} />
-      </TouchableOpacity>
+            </View>
+          </View>
 
-      {/* Stats Cards */}
-      {user?.role === 'INFLUENCER' && (
-        <ThemedView style={styles.statsContainer}>
-          <ThemedView style={[styles.statCard, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
-            <ThemedText style={styles.statNumber}>12</ThemedText>
-            <ThemedText style={styles.statLabel}>Chiến dịch hoàn thành</ThemedText>
-          </ThemedView>
-          
-          <ThemedView style={[styles.statCard, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
-            <ThemedText style={styles.statNumber}>4.8</ThemedText>
-            <ThemedText style={styles.statLabel}>Đánh giá trung bình</ThemedText>
-          </ThemedView>
-          
-          <ThemedView style={[styles.statCard, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
-            <ThemedText style={styles.statNumber}>85K</ThemedText>
-            <ThemedText style={styles.statLabel}>Người theo dõi</ThemedText>
-          </ThemedView>
-        </ThemedView>
-      )}
+          {/* Stats */}
+          <View style={styles.statsContainer}>
+            {getUserStats().map((stat, index) => (
+              <View key={index} style={styles.statItem}>
+                <ThemedText style={styles.statValue}>{stat.value}</ThemedText>
+                <ThemedText style={styles.statLabel}>{stat.label}</ThemedText>
+              </View>
+            ))}
+          </View>
+        </LinearGradient>
 
-      {/* Menu Sections */}
-      {menuSections.map((section, sectionIndex) => (
-        <ThemedView key={sectionIndex} style={styles.menuSection}>
-          <ThemedText style={styles.sectionTitle}>{section.title}</ThemedText>
-          <ThemedView style={[styles.menuGroup, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}>
-            {section.items.map((item, itemIndex) => renderMenuItem(item, itemIndex))}
-          </ThemedView>
-        </ThemedView>
-      ))}
+        {/* Role Debug Panel */}
+        <RoleDebugger />
 
-      {/* Logout Button */}
-      <TouchableOpacity 
-        style={[styles.logoutButton, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
-        onPress={handleLogout}
-      >
-        <IconSymbol name="arrow.right.square" size={20} color="#EF4444" />
-        <ThemedText style={styles.logoutText}>Đăng xuất</ThemedText>
-      </TouchableOpacity>
+        {/* Menu sections */}
+        {getMenuSections().map(renderSection)}
 
-      <ThemedView style={styles.footer}>
-        <ThemedText style={styles.versionText}>NicheLink v1.0.0</ThemedText>
-      </ThemedView>
-    </ScrollView>
+        {/* Footer */}
+        <View style={styles.footer}>
+          <ThemedText style={styles.footerText}>
+            NicheLink v1.0.0
+          </ThemedText>
+          <ThemedText style={styles.footerText}>
+            © 2025 NicheLink. All rights reserved.
+          </ThemedText>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -176,154 +339,197 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 60,
+    backgroundColor: COLORS.light.background,
   },
-  header: {
-    padding: 20,
-    paddingBottom: 10,
-  },
-  title: {
-    marginBottom: 0,
-  },
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  profileInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  content: {
     flex: 1,
+  },
+
+  // Header Styles
+  header: {
+    paddingTop: 50,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+  },
+  profileSection: {
+    alignItems: 'center',
+    marginBottom: 30,
   },
   avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
-    marginRight: 15,
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   avatarText: {
-    color: 'white',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
+    color: 'white',
+    fontFamily: 'Inter',
   },
-  userInfo: {
-    flex: 1,
+  editButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
   },
   userName: {
-    fontSize: 18,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    fontFamily: 'Inter',
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 14,
-    opacity: 0.7,
+    color: 'rgba(255,255,255,0.8)',
+    fontFamily: 'Inter',
     marginBottom: 8,
   },
-  userRole: {
-    alignSelf: 'flex-start',
+  roleBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   roleText: {
-    color: 'white',
     fontSize: 12,
+    color: 'white',
+    fontFamily: 'Inter',
     fontWeight: '600',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    overflow: 'hidden',
   },
+
+  // Stats Styles
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    gap: 10,
+    justifyContent: 'space-around',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    paddingVertical: 20,
+    marginHorizontal: 10,
   },
-  statCard: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  statItem: {
     alignItems: 'center',
+    flex: 1,
   },
-  statNumber: {
+  statValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 4,
+    color: 'white',
+    fontFamily: 'Inter',
   },
   statLabel: {
     fontSize: 12,
-    opacity: 0.7,
+    color: 'rgba(255,255,255,0.8)',
+    fontFamily: 'Inter',
     textAlign: 'center',
+    marginTop: 4,
   },
-  menuSection: {
-    marginBottom: 24,
-    paddingHorizontal: 20,
+
+  // Section Styles
+  section: {
+    marginTop: 24,
+    marginHorizontal: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
+    color: COLORS.light.text,
+    fontFamily: 'Inter',
     marginBottom: 12,
-    opacity: 0.8,
+    marginLeft: 4,
   },
-  menuGroup: {
+  sectionContent: {
+    backgroundColor: 'white',
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
+
+  // Menu Item Styles
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.light.border,
+  },
+  menuItemDangerous: {
+    backgroundColor: COLORS.error + '05',
   },
   menuItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  menuItemText: {
-    marginLeft: 12,
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  menuIconDangerous: {
+    backgroundColor: COLORS.error + '15',
+  },
+  menuTextContainer: {
     flex: 1,
   },
-  menuItemTitle: {
+  menuTitle: {
     fontSize: 16,
+    fontWeight: '500',
+    color: COLORS.light.text,
+    fontFamily: 'Inter',
   },
-  menuItemSubtitle: {
+  menuTitleDangerous: {
+    color: COLORS.error,
+  },
+  menuSubtitle: {
     fontSize: 14,
-    opacity: 0.6,
+    color: COLORS.light.subtext,
+    fontFamily: 'Inter',
     marginTop: 2,
   },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  logoutText: {
+  menuItemRight: {
     marginLeft: 12,
-    fontSize: 16,
-    color: '#EF4444',
-    fontWeight: '600',
   },
+
+  // Footer Styles
   footer: {
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingVertical: 30,
+    paddingHorizontal: 20,
   },
-  versionText: {
+  footerText: {
     fontSize: 12,
-    opacity: 0.5,
+    color: COLORS.light.subtext,
+    fontFamily: 'Inter',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

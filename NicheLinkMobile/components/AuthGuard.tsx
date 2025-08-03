@@ -6,13 +6,15 @@ import { useAuth } from '../context/AuthContext';
 interface AuthGuardProps {
   children: React.ReactNode;
   requireAuth?: boolean;
+  requiredRole?: 'SME' | 'INFLUENCER' | string;
 }
 
 export const AuthGuard: React.FC<AuthGuardProps> = ({ 
   children, 
-  requireAuth = true 
+  requireAuth = true,
+  requiredRole
 }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
     return (
@@ -27,6 +29,11 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
   }
 
   if (!requireAuth && isAuthenticated) {
+    return <Redirect href="../(tabs)" />;
+  }
+
+  // Check role requirement
+  if (requiredRole && user?.role !== requiredRole) {
     return <Redirect href="../(tabs)" />;
   }
 
