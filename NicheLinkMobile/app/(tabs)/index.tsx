@@ -169,7 +169,7 @@ function HomeContent() {
             
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => router.push('/screens/explore' as any)}
+              onPress={() => router.push('/explore' as any)}
             >
               <LinearGradient 
                 colors={[COLORS.secondary, '#FFAB91']} 

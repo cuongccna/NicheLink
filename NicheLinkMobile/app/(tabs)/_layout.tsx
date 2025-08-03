@@ -120,6 +120,16 @@ export default function TabLayout() {
           name="koc-profile"
           options={{ href: null }}
         />
+        <Tabs.Screen
+          name="explore"
+          options={{ 
+            href: null,
+            title: 'Khám phá KOC',
+            tabBarIcon: ({ color }) => (
+              <IconSymbol size={28} name="person.badge.plus.fill" color={color} />
+            ),
+          }}
+        />
       </Tabs>
     );
   }
@@ -210,6 +220,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{ 
+          href: null,
+          title: 'Khám phá KOC',
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="person.badge.plus.fill" color={color} />
+          ),
+        }}
       />
     </Tabs>
   );
