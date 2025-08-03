@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { auth } from '../config/firebaseConfig';
 import {
     AuthResponse,
     AuthTokens,
@@ -10,10 +11,10 @@ import {
 
 const API_BASE_URL = 'http://192.168.1.54:3001/api';
 
-class BackendAuthService {
+class FirebaseAuthService {
   private apiClient = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 20000, // Increased to 20 seconds for mobile devices
+    timeout: 20000,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -65,31 +66,54 @@ class BackendAuthService {
   }
 
   async login(credentials: LoginRequest): Promise<AuthResponse> {
-    console.log('🔑 [LOGIN ATTEMPT]', { email: credentials.email });
+    console.log('🔑 [FIREBASE LOGIN ATTEMPT]', { email: credentials.email });
     
     try {
-      // Call Firebase Authentication login endpoint
-      const response = await this.apiClient.post('/auth/login', {
-        email: credentials.email,
-        password: credentials.password
+      // Step 1: Authenticate with Firebase Client SDK
+      console.log('🔥 [STEP 1] Authenticating with Firebase Client SDK...');
+      const userCredential = await auth().signInWithEmailAndPassword(
+        credentials.email,
+        credentials.password
+      );
+
+      if (!userCredential.user) {
+        throw new Error('Firebase authentication failed - no user returned');
+      }
+
+      console.log('✅ [FIREBASE AUTH] User authenticated:', userCredential.user.uid);
+
+      // Step 2: Get ID token from Firebase
+      console.log('🎫 [STEP 2] Getting ID token...');
+      const idToken = await userCredential.user.getIdToken();
+      
+      if (!idToken) {
+        throw new Error('Failed to get ID token from Firebase');
+      }
+
+      console.log('✅ [ID TOKEN] Token obtained successfully');
+
+      // Step 3: Verify token with backend
+      console.log('🔐 [STEP 3] Verifying token with backend...');
+      const response = await this.apiClient.post('/auth/verify-token', {
+        idToken: idToken
       });
 
-      console.log('✅ [BACKEND LOGIN RESPONSE]', response.data);
+      console.log('✅ [BACKEND VERIFY RESPONSE]', response.data);
 
       if (response.data.success) {
         const user: User = {
-          id: response.data.data.user?.id || `user-${Date.now()}`,
+          id: response.data.data.user?.id || userCredential.user.uid,
           email: credentials.email,
           firstName: response.data.data.user?.firstName || '',
           lastName: response.data.data.user?.lastName || '',
           role: response.data.data.user?.role || 'INFLUENCER',
-          verified: response.data.data.user?.isEmailVerified || false,
+          verified: response.data.data.user?.isEmailVerified || userCredential.user.emailVerified,
           createdAt: response.data.data.user?.createdAt || new Date().toISOString(),
           updatedAt: response.data.data.user?.updatedAt || new Date().toISOString()
         };
 
         const tokens: AuthTokens = {
-          accessToken: response.data.data.token || '',
+          accessToken: response.data.data.token || idToken,
           refreshToken: response.data.data.refreshToken || '',
           expiresIn: response.data.data.expiresIn || 3600
         };
@@ -97,7 +121,7 @@ class BackendAuthService {
         await this.storeTokens(tokens);
         await this.storeUser(user);
 
-        console.log('✅ [LOGIN SUCCESS] Firebase authentication successful:', credentials.email);
+        console.log('✅ [LOGIN SUCCESS] Firebase + Backend authentication successful');
 
         return {
           success: true,
@@ -107,43 +131,66 @@ class BackendAuthService {
         };
       }
 
-      throw new Error('Login failed');
+      throw new Error('Backend token verification failed');
     } catch (error: any) {
-      console.log('❌ [LOGIN BACKEND FAILED]', error.message);
+      console.log('❌ [LOGIN FAILED]', error.message);
       
-      // Check if it's a user-facing error that should be shown
-      if (error.response?.status === 404) {
+      // Handle Firebase-specific errors
+      if (error.code === 'auth/user-not-found') {
         throw new Error('Email này chưa được đăng ký. Vui lòng đăng ký trước khi đăng nhập.');
       }
       
-      if (error.response?.status === 401) {
-        throw new Error('Email hoặc mật khẩu không đúng.');
+      if (error.code === 'auth/wrong-password') {
+        throw new Error('Mật khẩu không đúng.');
       }
       
-      if (error.response?.status === 400) {
-        const errorMessage = error.response?.data?.message || 'Dữ liệu không hợp lệ';
-        throw new Error(`Lỗi đăng nhập: ${errorMessage}`);
+      if (error.code === 'auth/invalid-email') {
+        throw new Error('Email không hợp lệ.');
       }
-      
-      // For network errors or server errors, DO NOT fall back to local registry
-      // Authentication should only work with real backend validation
-      if (error.code === 'NETWORK_ERROR' || error.response?.status >= 500 || !error.response) {
-        console.log('❌ [NETWORK ERROR] Cannot connect to authentication server');
-        throw new Error('Không thể kết nối đến server xác thực. Vui lòng kiểm tra kết nối mạng và thử lại.');
+
+      if (error.code === 'auth/user-disabled') {
+        throw new Error('Tài khoản này đã bị vô hiệu hóa.');
+      }
+
+      if (error.code === 'auth/too-many-requests') {
+        throw new Error('Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau.');
+      }
+
+      if (error.code === 'auth/network-request-failed') {
+        throw new Error('Lỗi kết nối mạng. Vui lòng kiểm tra kết nối và thử lại.');
       }
       
       // For other errors, throw them to be handled by the UI
-      throw new Error(error.response?.data?.message || error.message || 'Đăng nhập thất bại');
+      throw new Error(error.message || 'Đăng nhập thất bại');
     }
   }
 
   async register(userData: RegisterRequest): Promise<AuthResponse> {
-    console.log('🚀 [REGISTRATION ATTEMPT]', userData.email, userData.role);
+    console.log('🚀 [FIREBASE REGISTRATION ATTEMPT]', userData.email, userData.role);
     
     try {
+      // Step 1: Create user with Firebase Auth
+      console.log('🔥 [STEP 1] Creating user with Firebase Auth...');
+      const userCredential = await auth().createUserWithEmailAndPassword(
+        userData.email,
+        userData.password
+      );
+
+      if (!userCredential.user) {
+        throw new Error('Firebase user creation failed');
+      }
+
+      console.log('✅ [FIREBASE USER CREATED]', userCredential.user.uid);
+
+      // Step 2: Get ID token
+      console.log('🎫 [STEP 2] Getting ID token...');
+      const idToken = await userCredential.user.getIdToken();
+
+      // Step 3: Register user data with backend
+      console.log('📝 [STEP 3] Registering user data with backend...');
       const response = await this.apiClient.post('/auth/register', {
+        idToken: idToken,
         email: userData.email,
-        password: userData.password,
         fullName: `${userData.firstName} ${userData.lastName}`,
         role: userData.role,
         bio: userData.role === 'INFLUENCER' ? 'Mobile app user' : 'Business owner',
@@ -153,18 +200,18 @@ class BackendAuthService {
 
       if (response.data.success || response.data.user) {
         const user: User = {
-          id: response.data.user?.id || `user-${Date.now()}`,
+          id: response.data.user?.id || userCredential.user.uid,
           email: userData.email,
           firstName: userData.firstName,
           lastName: userData.lastName,
           role: userData.role,
-          verified: false,
+          verified: userCredential.user.emailVerified,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
 
         const tokens: AuthTokens = {
-          accessToken: response.data.data?.token || '',
+          accessToken: response.data.data?.token || idToken,
           refreshToken: response.data.data?.refreshToken || '',
           expiresIn: response.data.data?.expiresIn || 3600
         };
@@ -178,27 +225,46 @@ class BackendAuthService {
           success: true,
           user,
           tokens,
-          message: 'Registration successful'
+          message: 'Đăng ký thành công'
         };
       }
 
       throw new Error('Registration failed');
     } catch (error: any) {
-      console.log('⚠️ [REGISTRATION BACKEND FAILED]', error.message);
+      console.log('❌ [REGISTRATION FAILED]', error.message);
       
-      // Check if it's a user-facing error that should be shown
+      // Handle Firebase-specific errors
+      if (error.code === 'auth/email-already-in-use') {
+        throw new Error('Email này đã được sử dụng. Vui lòng thử email khác hoặc đăng nhập.');
+      }
+      
+      if (error.code === 'auth/weak-password') {
+        throw new Error('Mật khẩu quá yếu. Vui lòng chọn mật khẩu mạnh hơn.');
+      }
+      
+      if (error.code === 'auth/invalid-email') {
+        throw new Error('Email không hợp lệ.');
+      }
+
+      if (error.code === 'auth/operation-not-allowed') {
+        throw new Error('Đăng ký email/password chưa được bật.');
+      }
+
+      if (error.code === 'auth/network-request-failed') {
+        throw new Error('Lỗi kết nối mạng. Vui lòng kiểm tra kết nối và thử lại.');
+      }
+
+      // Check if it's a backend error
       if (error.response?.status === 409) {
-        // User already exists - show this error to user
         throw new Error('Email này đã được sử dụng. Vui lòng thử email khác hoặc đăng nhập.');
       }
       
       if (error.response?.status === 400) {
-        // Validation error - show this to user
         const errorMessage = error.response?.data?.message || 'Dữ liệu không hợp lệ';
         throw new Error(`Lỗi đăng ký: ${errorMessage}`);
       }
-      
-      // NO fallback to mock - registration must work with real backend only
+
+      // Network errors with backend
       if (error.code === 'NETWORK_ERROR' || error.response?.status >= 500 || !error.response) {
         console.log('❌ [NETWORK ERROR] Cannot connect to registration server');
         throw new Error('Không thể kết nối đến server đăng ký. Vui lòng kiểm tra kết nối mạng và thử lại.');
@@ -210,7 +276,22 @@ class BackendAuthService {
   }
 
   async logout(): Promise<void> {
-    await this.clearStorage();
+    console.log('🚪 [LOGOUT] Signing out...');
+    
+    try {
+      // Sign out from Firebase
+      await auth().signOut();
+      console.log('✅ [FIREBASE LOGOUT] Signed out from Firebase');
+      
+      // Clear local storage
+      await this.clearStorage();
+      console.log('✅ [STORAGE CLEARED] Local data cleared');
+      
+    } catch (error) {
+      console.error('❌ [LOGOUT ERROR]', error);
+      // Even if logout fails, clear local storage
+      await this.clearStorage();
+    }
   }
 
   async getCurrentUser(): Promise<User | null> {
@@ -225,26 +306,13 @@ class BackendAuthService {
 
   async isAuthenticated(): Promise<boolean> {
     try {
-      const token = await AsyncStorage.getItem('accessToken');
-      const user = await this.getCurrentUser();
-      return !!(token && user);
+      // Check both Firebase auth state and stored tokens
+      const firebaseUser = auth().currentUser;
+      const storedToken = await AsyncStorage.getItem('accessToken');
+      
+      return !!(firebaseUser && storedToken);
     } catch (error) {
-      return false;
-    }
-  }
-
-  async refreshToken(): Promise<boolean> {
-    try {
-      const newTokens: AuthTokens = {
-        accessToken: `token-${Date.now()}`,
-        refreshToken: `refresh-${Date.now()}`,
-        expiresIn: 3600
-      };
-
-      await this.storeTokens(newTokens);
-      return true;
-    } catch (error) {
-      console.error('Token refresh failed:', error);
+      console.error('Error checking auth status:', error);
       return false;
     }
   }
@@ -253,47 +321,12 @@ class BackendAuthService {
     await AsyncStorage.multiSet([
       ['accessToken', tokens.accessToken],
       ['refreshToken', tokens.refreshToken],
-      ['tokenExpiry', (Date.now() + tokens.expiresIn * 1000).toString()],
+      ['tokenExpiry', (Date.now() + (tokens.expiresIn * 1000)).toString()],
     ]);
   }
 
   private async storeUser(user: User): Promise<void> {
     await AsyncStorage.setItem('user', JSON.stringify(user));
-    // Also store in user registry for login lookup
-    await this.addUserToRegistry(user);
-  }
-
-  private async addUserToRegistry(user: User): Promise<void> {
-    try {
-      const registryString = await AsyncStorage.getItem('userRegistry');
-      const registry: User[] = registryString ? JSON.parse(registryString) : [];
-      
-      // Remove existing user with same email if exists
-      const filteredRegistry = registry.filter(u => u.email !== user.email);
-      
-      // Add the new/updated user
-      filteredRegistry.push(user);
-      
-      await AsyncStorage.setItem('userRegistry', JSON.stringify(filteredRegistry));
-      console.log('✅ [USER REGISTRY] User added to registry:', user.email);
-    } catch (error) {
-      console.error('Error updating user registry:', error);
-    }
-  }
-
-  private async findUserInRegistry(email: string): Promise<User | null> {
-    try {
-      const registryString = await AsyncStorage.getItem('userRegistry');
-      if (!registryString) return null;
-      
-      const registry: User[] = JSON.parse(registryString);
-      const user = registry.find(u => u.email === email);
-      
-      return user || null;
-    } catch (error) {
-      console.error('Error reading user registry:', error);
-      return null;
-    }
   }
 
   private async clearStorage(): Promise<void> {
@@ -306,35 +339,18 @@ class BackendAuthService {
     ]);
   }
 
-  private handleAuthError(error: any): Error {
-    if (error.response?.data?.message) {
-      return new Error(error.response.data.message);
+  // Clear mock data on service initialization to ensure real authentication
+  private async clearMockData(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem('userRegistry');
+      console.log('🗑️ [INIT] Cleared mock user registry - forcing real authentication');
+    } catch (error) {
+      console.error('Error clearing mock data:', error);
     }
-    
-    if (error.response?.data?.error) {
-      return new Error(error.response.data.error);
-    }
-    
-    if (error.message) {
-      return new Error(error.message);
-    }
-    
-    return new Error('An unexpected error occurred');
   }
 
   updateBaseURL(baseURL: string): void {
     this.apiClient.defaults.baseURL = baseURL;
-  }
-
-  // Debug method to check registered users
-  async getRegisteredUsers(): Promise<User[]> {
-    try {
-      const registryString = await AsyncStorage.getItem('userRegistry');
-      return registryString ? JSON.parse(registryString) : [];
-    } catch (error) {
-      console.error('Error reading user registry:', error);
-      return [];
-    }
   }
 
   // Method to clear all stored data including user registry
@@ -348,16 +364,7 @@ class BackendAuthService {
     ]);
     console.log('🗑️ [CLEAR ALL] All stored data cleared');
   }
-
-  // Clear mock data on service initialization to ensure real authentication
-  private async clearMockData(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem('userRegistry');
-      console.log('🗑️ [INIT] Cleared mock user registry - forcing real authentication');
-    } catch (error) {
-      console.error('Error clearing mock data:', error);
-    }
-  }
 }
 
-export default new BackendAuthService();
+const firebaseAuthService = new FirebaseAuthService();
+export default firebaseAuthService;

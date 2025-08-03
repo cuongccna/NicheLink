@@ -79,11 +79,13 @@ router.post('/register', validateRegister, async (req: Request, res: Response): 
 });
 
 /**
- * @route POST /api/auth/login
- * @desc Login user with email and password
+ * @route POST /api/auth/verify-token
+ * @desc Verify Firebase ID token and return user data
  * @access Public
  */
-router.post('/login', validateLogin, async (req: Request, res: Response): Promise<void> => {
+router.post('/verify-token', [
+  body('idToken').notEmpty().withMessage('Firebase ID token is required')
+], async (req: Request, res: Response): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -95,15 +97,44 @@ router.post('/login', validateLogin, async (req: Request, res: Response): Promis
       return;
     }
 
-    const { email, password } = req.body;
-    const result = await authService.loginUser(email, password);
+    const { idToken } = req.body;
+    
+    // Verify the Firebase ID token
+    const result = await authService.verifyFirebaseToken(idToken);
 
     res.json({
       success: true,
-      message: 'Login successful',
+      message: 'Token verified successfully',
       data: {
         user: result.user,
-        token: result.firebaseToken
+        isNewUser: result.isNewUser
+      }
+    });
+
+  } catch (error: any) {
+    logger.error('Token verification error:', error);
+    res.status(401).json({
+      error: error.name || 'TokenVerificationError',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/auth/login
+ * @desc DEPRECATED: Use client-side Firebase auth + /verify-token instead
+ * @access Public
+ */
+router.post('/login', validateLogin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Return error message explaining the correct flow
+    res.status(400).json({
+      error: 'DeprecatedEndpoint',
+      message: 'This endpoint is deprecated. Please use Firebase Client SDK for authentication, then call /verify-token with the ID token.',
+      correctFlow: {
+        step1: 'Use Firebase Client SDK: signInWithEmailAndPassword(email, password)',
+        step2: 'Get ID token: user.getIdToken()',
+        step3: 'Send to backend: POST /api/auth/verify-token with idToken'
       }
     });
 

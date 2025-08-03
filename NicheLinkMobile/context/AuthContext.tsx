@@ -1,5 +1,6 @@
 import React, { createContext, ReactNode, useContext, useEffect, useReducer } from 'react';
-import backendAuthService from '../services/backendAuthService';
+// TODO: Switch back to firebaseClientAuthService when using Development Build
+import mockFirebaseAuthService from '../services/mockFirebaseAuthService';
 import { AuthError, AuthState, AuthTokens, LoginRequest, RegisterRequest, User } from '../types/auth';
 
 interface AuthContextType extends AuthState {
@@ -15,6 +16,7 @@ type AuthAction =
   | { type: 'AUTH_START' }
   | { type: 'AUTH_SUCCESS'; payload: { user: User; tokens: AuthTokens } }
   | { type: 'AUTH_FAILURE'; payload: AuthError }
+  | { type: 'REGISTRATION_SUCCESS'; payload: { message: string } }
   | { type: 'AUTH_LOGOUT' }
   | { type: 'CLEAR_ERROR' }
   | { type: 'SET_LOADING'; payload: boolean };
@@ -53,6 +55,15 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         isAuthenticated: false,
         error: action.payload,
       };
+    case 'REGISTRATION_SUCCESS':
+      return {
+        ...state,
+        user: null,
+        tokens: null,
+        isLoading: false,
+        isAuthenticated: false,
+        error: { message: action.payload.message }, // Show success message as "error" (but it's actually success)
+      };
     case 'AUTH_LOGOUT':
       return {
         ...initialState,
@@ -88,9 +99,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     
     try {
-      const isAuth = await backendAuthService.isAuthenticated();
+      // Temporarily disabled auto-clear for authentication testing
+      // if (__DEV__) {
+      //   console.log('🧹 [DEV] Clearing mock auth data for fresh start');
+      //   await mockFirebaseAuthService.clearAllData();
+      // }
+      
+      const isAuth = await mockFirebaseAuthService.isAuthenticated();
       if (isAuth) {
-        const user = await backendAuthService.getCurrentUser();
+        const user = await mockFirebaseAuthService.getCurrentUser();
         if (user) {
           // We don't store tokens in state for security, just check if they exist
           dispatch({
@@ -113,7 +130,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     dispatch({ type: 'AUTH_START' });
     
     try {
-      const response = await backendAuthService.login(credentials);
+      const response = await mockFirebaseAuthService.login(credentials);
       
       if (response.success) {
         dispatch({
@@ -142,10 +159,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     dispatch({ type: 'AUTH_START' });
     
     try {
-      const response = await backendAuthService.register(userData);
+      const response = await mockFirebaseAuthService.register(userData);
       console.log('✅ [AUTH CONTEXT] Registration response:', response.success);
       
       if (response.success) {
+        // Auto-login after successful registration (skip email verification for testing)
         dispatch({
           type: 'AUTH_SUCCESS',
           payload: {
@@ -153,7 +171,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             tokens: response.tokens,
           },
         });
-        console.log('✅ [AUTH CONTEXT] Registration successful, user logged in');
+        console.log('✅ [AUTH CONTEXT] Registration successful - auto-logged in for testing');
       } else {
         console.log('❌ [AUTH CONTEXT] Registration failed:', response.message);
         dispatch({
@@ -174,7 +192,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     
     try {
-      await backendAuthService.logout();
+      await mockFirebaseAuthService.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {

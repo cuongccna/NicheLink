@@ -1,15 +1,29 @@
 import { Request, Response, NextFunction } from 'express';
 import { authenticateToken, requireRole, requireSME, requireInfluencer, optionalAuth } from '../../middleware/auth';
-import { getAuth } from '../../config/firebase';
-import { prisma } from '../../config/database';
+import * as admin from 'firebase-admin';
+import { PrismaClient } from '@prisma/client';
 
-// Mock dependencies
-jest.mock('../../config/firebase');
-jest.mock('../../config/database');
-jest.mock('../../utils/logger');
+// Mock Firebase Admin and Prisma
+jest.mock('firebase-admin');
+jest.mock('@prisma/client');
 
-const mockGetAuth = getAuth as jest.MockedFunction<typeof getAuth>;
-const mockPrisma = prisma as jest.Mocked<typeof prisma>;
+const mockAuth = {
+  verifyIdToken: jest.fn(),
+};
+
+const mockPrisma = {
+  user: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
+};
+
+// Setup mocks
+(admin.auth as jest.Mock).mockReturnValue(mockAuth);
+(PrismaClient as jest.Mock).mockImplementation(() => mockPrisma);
 
 describe('Authentication Middleware', () => {
   let mockRequest: Partial<Request>;

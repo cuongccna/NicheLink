@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "nichelink.com",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
